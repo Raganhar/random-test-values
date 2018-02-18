@@ -32,7 +32,14 @@ namespace RandomTestValues
                 {typeof(DateTimeOffset), type => DateTimeOffset() },
                 {typeof(Uri), type => Uri() }
             };
-        
+
+        private static Dictionary<Type, Func<Type, object>> Numerics = new Dictionary<Type, Func<Type, object>>
+        {
+            {typeof(int),type => Int(0,0)},
+            {typeof(decimal), type => Decimal(0)},
+                {typeof(double), type => Double(0)},
+        };
+
         private static readonly Random _Random = new Random();
 
         /// <summary>
@@ -173,6 +180,10 @@ namespace RandomTestValues
         {
             return _Random.NextDouble();
         }
+        public static double Double(double d)
+        {
+            return d;
+        }
 
         public static char Char()
         {
@@ -290,7 +301,14 @@ namespace RandomTestValues
                     continue;
                 }
 
-                var newSettings = new RandomValueSettings { RecursiveDepth = settings.RecursiveDepth - 1, IncludeNullAsPossibleValueForNullables = settings.IncludeNullAsPossibleValueForNullables, LengthOfCollection = settings.LengthOfCollection };
+                var newSettings = new RandomValueSettings
+                {
+                    RecursiveDepth = settings.RecursiveDepth - 1,
+                    IncludeNullAsPossibleValueForNullables = settings.IncludeNullAsPossibleValueForNullables,
+                    LengthOfCollection = settings.LengthOfCollection,
+                    NestedLevels = settings.NestedLevels == -1 ? -1 : settings.NestedLevels - 1,
+                    NumericZero = settings.NumericZero
+                };
 
                 try
                 {
@@ -318,7 +336,7 @@ namespace RandomTestValues
 
         public static T[] Array<T>(int? optionalLength = null, int recursiveDepth = 0)
         {
-            return Array<T>(new RandomValueSettings (optionalLength) { RecursiveDepth = recursiveDepth});
+            return Array<T>(new RandomValueSettings(optionalLength) { RecursiveDepth = recursiveDepth });
         }
 
         public static T[] Array<T>(RandomValueSettings settings)
@@ -399,9 +417,9 @@ namespace RandomTestValues
             }
         }
 
-        public static Dictionary<TKey, TValue> Dictionary<TKey,TValue>(int? optionalLength = null, int recursiveDepth = 0)
+        public static Dictionary<TKey, TValue> Dictionary<TKey, TValue>(int? optionalLength = null, int recursiveDepth = 0)
         {
-            return Dictionary<TKey, TValue>(new RandomValueSettings (optionalLength) { RecursiveDepth = recursiveDepth });
+            return Dictionary<TKey, TValue>(new RandomValueSettings(optionalLength) { RecursiveDepth = recursiveDepth });
         }
 
         public static Dictionary<TKey, TValue> Dictionary<TKey, TValue>(RandomValueSettings settings)
@@ -434,18 +452,19 @@ namespace RandomTestValues
             switch (supportType)
             {
                 case SupportType.Basic:
-                    return SupportedTypes[propertyType].Invoke(propertyType);
+                    var typefunc = settings.NumericZero ? Numerics.ContainsKey(propertyType) ? Numerics[propertyType] : SupportedTypes[propertyType] : SupportedTypes[propertyType];
+                    return typefunc.Invoke(propertyType);
                 case SupportType.Enum:
                     return EnumMethodCall(propertyType);
                 case SupportType.Collection:
-                {
-                    var collectionType = GetSupportedCollectionType(propertyType);
-                    return GetListMethodOfCollections(propertyType, collectionType.First(), settings);
-                }
+                    {
+                        var collectionType = GetSupportedCollectionType(propertyType);
+                        return GetListMethodOfCollections(propertyType, collectionType.First(), settings);
+                    }
                 case SupportType.Nullable:
                     return NullableMethodCall(propertyType, settings);
                 case SupportType.UserDefined:
-                    return ObjectMethodCall(propertyType, settings);
+                    return settings.NestedLevels == -1 ? null : ObjectMethodCall(propertyType, settings);
                 default:
                     return null;
             }
@@ -453,7 +472,7 @@ namespace RandomTestValues
 
         private static object NullableMethodCall(Type propertyType, RandomValueSettings settings)
         {
-            if(settings.IncludeNullAsPossibleValueForNullables && Bool())
+            if (settings.IncludeNullAsPossibleValueForNullables && Bool())
             {
                 return null;
             }
@@ -568,7 +587,7 @@ namespace RandomTestValues
         }
 
         private static object CollectionMethodCall(Type typeOfList, RandomValueSettings settings)
-        { 
+        {
             return InvokeCollectionMethod("Collection", typeOfList, settings);
         }
 
@@ -608,7 +627,7 @@ namespace RandomTestValues
         {
             var possibleMethods = typeof(RandomValue).GetRuntimeMethods().Where(x => x.Name == nameOfMethod);
 
-            if(possibleMethods.Count() > 1)
+            if (possibleMethods.Count() > 1)
             {
                 return possibleMethods.First(x => x.GetParameters().Length == 1);
             }
@@ -667,7 +686,7 @@ namespace RandomTestValues
             return PropertyTypeIsRecursive<T>(property); // || PropertyTypeIsCircular<T>(property);
         }
 
-        
+
         private static bool PropertyTypeIsRecursive<T>(PropertyInfo property) where T : new()
         {
             var propertyType = property.PropertyType;
@@ -675,7 +694,7 @@ namespace RandomTestValues
             if (propertyType == typeof(T))
             {
                 return true;
-            }            
+            }
             if (IsSupportedCollection(propertyType))
             {
                 var collectionType = GetSupportedCollectionType(propertyType);

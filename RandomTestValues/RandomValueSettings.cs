@@ -22,7 +22,8 @@ namespace RandomTestValues
 
         public bool IncludeNullAsPossibleValueForNullables { get; set; }
         public int RecursiveDepth { get; set; }
-
+        public int NestedLevels { get; set; } = -2;
+        public bool NumericZero { get; set; }
         public int LengthOfCollection
         {
             get
